@@ -26,21 +26,22 @@ var OpenClawCmd = &cobra.Command{
 
 		command := args[0]
 
-		if command != commandGetSecrets {
+		if command != commandGetSecrets && command != commandGetSecretsAndDecrypt {
 			writeErrorResponse(globalErrorKey, fmt.Sprintf("Error: unknown command '%s', only 'getsecret' is supported\n", command))
 			os.Exit(1)
 		}
 
-		runExecProviderMode()
+		runExecProviderMode(command)
 	},
 }
 
 const (
 	protocolVersion = 1
 
-	globalErrorKey    = "global"
-	commandGetSecrets = "getsecret"
-	addUserAgent      = "openclaw"
+	globalErrorKey              = "global"
+	commandGetSecrets           = "getsecret"
+	commandGetSecretsAndDecrypt = "getsecret-decrypt"
+	addUserAgent                = "openclaw"
 )
 
 // ExecProviderRequest Exec Provider 请求格式
@@ -63,7 +64,7 @@ type ErrorInfo struct {
 }
 
 // runExecProviderMode Exec Provider 模式（从 stdin 读取 JSON）
-func runExecProviderMode() {
+func runExecProviderMode(command string) {
 	input, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		writeErrorResponse(globalErrorKey, fmt.Sprintf("Failed to read stdin: %v", err))
@@ -93,7 +94,12 @@ func runExecProviderMode() {
 	}
 
 	for _, id := range req.IDs {
-		secretValue, err := kms.GetSecretValue(kmsClient, id)
+		var secretValue string
+		if command == commandGetSecretsAndDecrypt {
+			secretValue, err = kms.GetSecretValueAndDecrypt(kmsClient, id)
+		} else {
+			secretValue, err = kms.GetSecretValue(kmsClient, id)
+		}
 		if err != nil {
 			response.Errors[id] = &ErrorInfo{
 				Message: fmt.Sprintf("Failed to get secret: %v", err),

@@ -99,3 +99,19 @@ func GetSecretValue(client *kms20160120.Client, secretName string) (string, erro
 	}
 	return *resp.Body.GetSecretData(), nil
 }
+
+func GetSecretValueAndDecrypt(client *kms20160120.Client, secretName string) (string, error) {
+	cipherTextBlob, err := GetSecretValue(client, secretName)
+	if err != nil {
+		return "", fmt.Errorf("GetSecretValue Error: %v", err)
+	}
+
+	req := &kms20160120.DecryptRequest{
+		CiphertextBlob: tea.String(cipherTextBlob),
+	}
+	resp, err := client.Decrypt(req)
+	if err != nil {
+		return "", fmt.Errorf("decrypt Error: %v", err)
+	}
+	return *resp.Body.Plaintext, nil
+}

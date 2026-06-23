@@ -9,6 +9,7 @@ import (
 )
 
 const commandGetSecrets = "getsecret"
+const commandGetSecretsAndDecrypt = "getsecret-decrypt"
 
 var SecretCmd = &cobra.Command{
 	Use:   "secret",
@@ -20,7 +21,7 @@ var SecretCmd = &cobra.Command{
 		}
 
 		command := args[0]
-		if command != commandGetSecrets {
+		if command != commandGetSecrets && command != commandGetSecretsAndDecrypt {
 			fmt.Fprintf(os.Stderr, fmt.Sprintf("Error: unknown command '%s', only 'getsecret' is supported\n", command))
 			os.Exit(1)
 		}
@@ -31,7 +32,7 @@ var SecretCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		value, err := runExecPlainMode(secretName)
+		value, err := runExecPlainMode(secretName, command)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, fmt.Sprintf("Error: failed to get secret '%s': %v\n", secretName, err))
 			os.Exit(1)
@@ -40,12 +41,17 @@ var SecretCmd = &cobra.Command{
 	},
 }
 
-func runExecPlainMode(secretName string) (value string, err error) {
+func runExecPlainMode(secretName, command string) (value string, err error) {
 	kmsClient, err := kms.CreateKmsClient()
 	if err != nil {
 		return "", err
 	}
-	secretValue, err := kms.GetSecretValue(kmsClient, secretName)
+	var secretValue string
+	if command == commandGetSecretsAndDecrypt {
+		secretValue, err = kms.GetSecretValueAndDecrypt(kmsClient, secretName)
+	} else {
+		secretValue, err = kms.GetSecretValue(kmsClient, secretName)
+	}
 	if err != nil {
 		return "", err
 	}
