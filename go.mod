@@ -1,13 +1,18 @@
 module github.com/aliyun/alibabacloud-kms-cli
 
-go 1.21.9
+go 1.23.0
+
+toolchain go1.24.10
 
 require (
 	github.com/alibabacloud-go/darabonba-openapi/v2 v2.1.15
 	github.com/alibabacloud-go/kms-20160120/v3 v3.4.0
+	github.com/alibabacloud-go/openapi-util v0.1.1
 	github.com/alibabacloud-go/tea v1.4.0
-	github.com/aliyun/credentials-go v1.4.11
+	github.com/alibabacloud-go/tea-utils/v2 v2.0.7
+	github.com/aliyun/credentials-go v1.4.12
 	github.com/spf13/cobra v1.10.2
+	golang.org/x/crypto v0.37.0
 )
 
 require (
@@ -20,8 +25,6 @@ require (
 	github.com/alibabacloud-go/darabonba-string v1.0.2 // indirect
 	github.com/alibabacloud-go/debug v1.0.1 // indirect
 	github.com/alibabacloud-go/endpoint-util v1.1.0 // indirect
-	github.com/alibabacloud-go/openapi-util v0.1.1 // indirect
-	github.com/alibabacloud-go/tea-utils/v2 v2.0.7 // indirect
 	github.com/clbanning/mxj/v2 v2.7.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect

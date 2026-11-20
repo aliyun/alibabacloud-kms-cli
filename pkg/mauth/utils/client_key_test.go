@@ -1,0 +1,43 @@
+package utils
+
+import (
+	"strings"
+	"testing"
+	"time"
+)
+
+// 测试用的 PKCS#12 数据（password = testpassword123）。
+// 该证书为测试专用自签名证书（CN=test-client-key，RSA 2048），有效期 10 年，
+// 由 openssl 生成，仅用于单元测试，请勿用于任何生产环境。
+const testPrivateKeyData = "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"
+
+func TestExtractClientKey_Success(t *testing.T) {
+	password := "testpassword123"
+	privateKeyPem, expiresAt, err := ExtractClientKey(password, testPrivateKeyData)
+	if err != nil {
+		t.Fatalf("ExtractClientKey failed: %v", err)
+	}
+	if privateKeyPem == "" {
+		t.Fatal("expected non-empty private key PEM")
+	}
+	if !strings.Contains(privateKeyPem, "PRIVATE KEY") {
+		t.Fatalf("expected PRIVATE KEY in PEM, got: %s", privateKeyPem)
+	}
+	if time.Until(expiresAt) < 24*time.Hour {
+		t.Fatalf("expected certificate to be valid for more than 24 hours, got: %v", time.Until(expiresAt))
+	}
+}
+
+func TestExtractClientKey_WrongPassword(t *testing.T) {
+	_, _, err := ExtractClientKey("wrongpassword", testPrivateKeyData)
+	if err == nil {
+		t.Fatal("expected error for wrong password")
+	}
+}
+
+func TestExtractClientKey_InvalidBase64(t *testing.T) {
+	_, _, err := ExtractClientKey("testpassword123", "not-valid-base64!!!")
+	if err == nil {
+		t.Fatal("expected error for invalid base64")
+	}
+}
