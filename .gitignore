@@ -36,3 +36,6 @@ Thumbs.db
 # Config files with sensitive data
 *.json.bak
 .openclaw/
+
+# Internal test case document (not distributed)
+TestCases.md

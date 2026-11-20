@@ -12,6 +12,16 @@
 
 ---
 
+## 示例环境
+
+本文档所有示例均基于以下部署环境：
+
+- 运行用户：`admin`
+- OpenClaw 安装目录：`/home/admin/.openclaw`
+- 实际部署时请根据你的用户名和安装路径替换对应路径
+
+---
+
 ## 快速开始
 
 ### 1. 前置准备
@@ -101,7 +111,7 @@ cp ~/.openclaw/openclaw.json ~/.openclaw/openclaw.json.bak
     "providers": {
       "kms_bailian": {
         "source": "exec",
-        "command": "/home/用户名/.openclaw/kmscli",
+        "command": "/home/admin/.openclaw/kmscli",
         "args": ["openclaw", "getsecret"],
         "jsonOnly": true
       }
@@ -151,7 +161,9 @@ openclaw secrets reload
 
 ## 配置示例
 
-部署后的 `openclaw.json` 结构：
+### 方式一：默认凭证链（ECS RAM Role）
+
+ECS 实例已绑定 RAM 角色，通过阿里云默认凭证链自动获取 AK/SK：
 
 ```json
 {
@@ -181,6 +193,137 @@ openclaw secrets reload
 
 ---
 
+### 方式二：云原生认证（mauth）
+
+云原生环境（ECS 实例身份 / ACK OIDC / ClientKey）推荐使用配置文件。
+
+在 `~/.config/kmscli/config.json` 创建配置文件，kmscli 启动时自动读取：
+
+**配置文件路径优先级**：
+1. `KMSCLI_CONFIG_PATH` 环境变量指定的路径
+2. 默认路径 `~/.config/kmscli/config.json`
+3. 兼容旧路径 `~/.openclaw/kmscli.json`
+4. 当前工作目录下的 `kmscli.json` 或 `.openclaw/kmscli.json`（兜底）
+
+**配置优先级**（高到低）：命令行 flag > 环境变量 > 配置文件 > 默认值
+
+**mauth ECS 实例身份**：
+
+```json
+{
+  "aapArn": "acs:kms:cn-hangzhou:123456789:applicationaccesspoint/your-aap-id"
+}
+```
+
+**mauth ACK OIDC**（需挂载 ServiceAccount Token）：
+
+```json
+{
+  "aapArn": "acs:kms:cn-hangzhou:123456789:applicationaccesspoint/your-aap-id"
+}
+```
+
+**mauth ClientKey**：
+
+```json
+{
+  "clientKeyConfigPath": "/path/to/client_key.json",
+  "clientKeyPasswordPath": "/path/to/password.txt",
+  "regionId": "cn-hangzhou"
+}
+```
+
+**配置字段说明**：
+
+| 字段 | 说明 | 必填 | 示例值 |
+|---|---|---|---|
+| `authMethod` | 认证方式：`ECSInstanceIdentity` / `ACKOidcJwt` / `ClientKey` | 否，程序根据其他字段自动推断 | `ECSInstanceIdentity` |
+| `aapArn` | AAP ARN | ECS/ACK 场景必填 | `acs:kms:cn-hangzhou:123456789:applicationaccesspoint/your-aap-id` |
+| `tokenPath` | ACK OIDC Token 路径（默认 `/var/run/secrets/kubernetes.io/serviceaccount/token`） | 否 | `/var/run/secrets/tokens/token` |
+| `clientKeyConfigPath` | ClientKey 配置文件路径 | ClientKey 场景必填 | `/path/to/client_key.json` |
+| `clientKeyPasswordPath` | ClientKey 密码文件路径 | ClientKey 场景必填 | `/path/to/password.txt` |
+| `kmsEndpoint` | KMS 端点 | 否 | `kms-vpc.cn-hangzhou.aliyuncs.com` |
+| `regionId` | 地域 ID，用于自动拼接 endpoint | ACK 可选；ClientKey 必填 | `cn-hangzhou` |
+| `endpointType` | `Public` 或 `Vpc`（默认 `Vpc`） | 否 | `Vpc` |
+
+若不方便使用配置文件，也可通过环境变量配置：
+
+**ECS 实例身份**：
+
+```bash
+export KMSCLI_AAP_ARN=acs:kms:cn-hangzhou:123456789:applicationaccesspoint/your-aap-id
+```
+
+**ACK OIDC**：
+
+```bash
+export KMSCLI_AAP_ARN=acs:kms:cn-hangzhou:123456789:applicationaccesspoint/your-aap-id
+```
+
+**ClientKey**：
+
+```bash
+export KMSCLI_CLIENT_KEY_CONFIG_PATH=/path/to/client_key.json
+export KMSCLI_CLIENT_KEY_PASSWORD_PATH=/path/to/password.txt
+export REGION_ID=cn-hangzhou
+```
+---
+
+**进阶：Flag 方式**（不推荐，除非环境变量无法使用）
+
+如果环境变量不便配置，也可通过 `args` 直接传参：
+
+| Flag | 短别名 | 说明 |
+|---|---|---|
+| `--aap-arn` | `-a` | AAP ARN |
+| `--token-path` | `-t` | ACK OIDC Token 路径 |
+| `--client-key-config-path` | `-k` | ClientKey 配置文件路径 |
+| `--client-key-password-path` | `-p` | ClientKey 密码文件路径 |
+| `--kms-endpoint` | `-e` | KMS 端点 |
+| `--auth-method` | `-A` | 认证方式 |
+
+ECS 实例身份：
+```json
+"args": ["openclaw", "getsecret", "-a", "acs:kms:cn-hangzhou:123456789:applicationaccesspoint/your-aap-id"]
+```
+
+ACK OIDC：
+```json
+"args": ["openclaw", "getsecret", "-a", "acs:kms:cn-hangzhou:123456789:applicationaccesspoint/your-aap-id"]
+```
+
+ClientKey：
+```json
+"args": ["openclaw", "getsecret", "-k", "/path/to/client_key.json", "-p", "/path/to/password.txt", "-e", "kms-vpc.cn-hangzhou.aliyuncs.com"]
+```
+
+---
+
+**环境变量说明**
+
+| 环境变量 | 说明 | 必填 |
+|---|---|---|
+| `KMSCLI_CONFIG_PATH` | 配置文件路径，覆盖默认路径 | 否 |
+| `KMSCLI_AAP_ARN` | AAP ARN | ECS/ACK 场景必填 |
+| `KMSCLI_TOKEN_PATH` | ACK OIDC 的 JWT token 路径（默认 `/var/run/secrets/kubernetes.io/serviceaccount/token`） | 否 |
+| `KMSCLI_CLIENT_KEY_CONFIG_PATH` | ClientKey 配置文件路径 | ClientKey 场景必填 |
+| `KMSCLI_CLIENT_KEY_PASSWORD_PATH` | ClientKey 密码文件路径 | ClientKey 场景必填 |
+| `KMSCLI_KMS_ENDPOINT` | KMS 端点 | 否 |
+| `REGION_ID` | 地域 ID，用于自动拼接 endpoint | ACK 可选；ClientKey 必填 |
+| `ALIBABA_CLOUD_REGION_ID` | 地域 ID（与 `REGION_ID` 等价） | ACK 可选；ClientKey 必填 |
+| `ENDPOINT_TYPE` | Endpoint 类型：`Public` 或 `Vpc`（默认 `Vpc`） | 否 |
+| `KMSCLI_AUTH_METHOD` | 认证方式：`ECSInstanceIdentity` / `ACKOidcJwt` / `ClientKey` | 否，通常自动推断 |
+
+**自动推断规则**
+
+未指定 `--auth-method` 时，程序按以下优先级自动推断：
+- 存在 `KMSCLI_CLIENT_KEY_CONFIG_PATH` → `ClientKey`
+- 存在 `KMSCLI_TOKEN_PATH` → `ACKOidcJwt`
+- 存在默认 ACK ServiceAccount Token 文件且配置了 `KMSCLI_AAP_ARN` → `ACKOidcJwt`
+- 存在 `KMSCLI_AAP_ARN` → `ECSInstanceIdentity`
+
+---
+
 ## 命令行工具
 
 kmscli 提供以下命令：
@@ -189,9 +332,17 @@ kmscli 提供以下命令：
 # 普通模式（明文输出，可直接执行）
 kmscli secret getsecret <secretName>
 
+# 普通模式 + 自动解密（Secret 值为 KMS 加密密文时适用）
+# 注意：getsecret-decrypt 仅支持默认凭证链（RAM Role / AK / STS），mauth 模式不支持
+kmscli secret getsecret-decrypt <secretName>
+
 # OpenClaw 模式（JSON 格式输出，供 OpenClaw 调用，依赖 OpenClaw 配置）
 # 此命令需要 OpenClaw 通过 stdin 传入 JSON 请求，不可直接手动执行
 kmscli openclaw getsecret
+
+# OpenClaw 模式 + 自动解密
+# 注意：getsecret-decrypt 仅支持默认凭证链（RAM Role / AK / STS），mauth 模式不支持
+kmscli openclaw getsecret-decrypt
 ```
 
 ---
@@ -199,7 +350,7 @@ kmscli openclaw getsecret
 ## 注意事项
 
 - ECS 与 KMS 建议同地域，使用 VPC 内网访问
-- 默认使用VPC网络访问 KMS，可通过环境变量指定公网访问：`export ENDPOINT_TYPE=Public`, 当ECS 与 KMS 不在同一个地域时只能使用公网。
+- 默认使用VPC网络访问 KMS，可通过环境变量指定公网访问：`export ENDPOINT_TYPE=Public`。当ECS 与 KMS 不在同一个地域时只能使用公网。
 - 修改配置前请备份 `openclaw.json` 为 `.bak`
 - 如需恢复：`cp ~/.openclaw/openclaw.json.bak ~/.openclaw/openclaw.json`
 

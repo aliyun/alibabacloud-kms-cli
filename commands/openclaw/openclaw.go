@@ -1,24 +1,35 @@
 package openclaw
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 
-	"github.com/aliyun/alibabacloud-kms-cli/useragent"
-
+	"github.com/aliyun/alibabacloud-kms-cli/commands/common"
 	"github.com/aliyun/alibabacloud-kms-cli/kms"
+	"github.com/aliyun/alibabacloud-kms-cli/pkg/configfile"
+	"github.com/aliyun/alibabacloud-kms-cli/pkg/mauth/config"
+	"github.com/aliyun/alibabacloud-kms-cli/useragent"
 	"github.com/spf13/cobra"
 )
 
 // kmscli openclaw getsecret
 
+var (
+	kmsEndpoint           string
+	authMethod            string
+	aapArn                string
+	tokenPath             string
+	clientKeyConfigPath   string
+	clientKeyPasswordPath string
+)
+
 var OpenClawCmd = &cobra.Command{
 	Use:   "openclaw",
 	Short: "get openclaw secrets from kms, return json format",
 	Run: func(cmd *cobra.Command, args []string) {
-
 		if len(args) < 1 {
 			writeErrorResponse(globalErrorKey, fmt.Sprintf("Error: missing command arguments\nUsage: %s openclaw getsecret\n", os.Args[0]))
 			os.Exit(1)
@@ -27,12 +38,16 @@ var OpenClawCmd = &cobra.Command{
 		command := args[0]
 
 		if command != commandGetSecrets && command != commandGetSecretsAndDecrypt {
-			writeErrorResponse(globalErrorKey, fmt.Sprintf("Error: unknown command '%s', only 'getsecret' is supported\n", command))
+			writeErrorResponse(globalErrorKey, fmt.Sprintf("Error: unknown command '%s', only 'getsecret' and 'getsecret-decrypt' are supported\n", command))
 			os.Exit(1)
 		}
 
 		runExecProviderMode(command)
 	},
+}
+
+func init() {
+	common.RegisterKmsFlags(OpenClawCmd, &kmsEndpoint, &authMethod, &aapArn, &tokenPath, &clientKeyConfigPath, &clientKeyPasswordPath)
 }
 
 const (
@@ -82,24 +97,31 @@ func runExecProviderMode(command string) {
 		os.Exit(1)
 	}
 	useragent.RegisterUserAgent(addUserAgent)
-	kmsClient, err := kms.CreateKmsClient()
-	if err != nil {
-		writeErrorResponse(globalErrorKey, fmt.Sprintf("Failed to initialize KMS Client: %v", err))
-		os.Exit(1)
-	}
+
 	response := ExecProviderResponse{
 		ProtocolVersion: protocolVersion,
 		Values:          make(map[string]string),
 		Errors:          make(map[string]*ErrorInfo),
 	}
 
+	authConfig := config.AuthConfig{
+		AuthMethod:            authMethod,
+		KmsEndpoint:           kmsEndpoint,
+		AapArn:                aapArn,
+		TokenPath:             tokenPath,
+		ClientKeyConfigPath:   clientKeyConfigPath,
+		ClientKeyPasswordPath: clientKeyPasswordPath,
+	}
+
+	cfgFile, err := configfile.Load()
+	if err != nil {
+		writeErrorResponse(globalErrorKey, fmt.Sprintf("Failed to load config file: %v", err))
+		os.Exit(1)
+	}
+	common.MergeConfigFile(cfgFile, &authConfig)
+
 	for _, id := range req.IDs {
-		var secretValue string
-		if command == commandGetSecretsAndDecrypt {
-			secretValue, err = kms.GetSecretValueAndDecrypt(kmsClient, id)
-		} else {
-			secretValue, err = kms.GetSecretValue(kmsClient, id)
-		}
+		secretValue, err := kms.ResolveSecret(context.Background(), authConfig, command, id)
 		if err != nil {
 			response.Errors[id] = &ErrorInfo{
 				Message: fmt.Sprintf("Failed to get secret: %v", err),
@@ -108,7 +130,6 @@ func runExecProviderMode(command string) {
 			response.Values[id] = secretValue
 		}
 	}
-
 	output, err := json.Marshal(response)
 	if err != nil {
 		writeErrorResponse(globalErrorKey, fmt.Sprintf("Failed to serialize response: %v", err))
@@ -127,7 +148,7 @@ func writeErrorResponse(id string, message string) {
 	}
 	output, err := json.Marshal(response)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, fmt.Sprintf("marshal response error %v", err))
+		fmt.Fprintf(os.Stderr, "marshal response error %v\n", err)
 		os.Exit(1)
 	}
 	fmt.Print(string(output))

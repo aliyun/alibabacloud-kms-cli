@@ -1,11 +1,11 @@
 package useragent
 
-import "fmt"
+const DefaultUserAgent = "kmscli"
 
-var globalUserAgent = "kmscli"
+var globalUserAgent = DefaultUserAgent
 
 func RegisterUserAgent(useragent string) {
-	globalUserAgent = fmt.Sprintf(globalUserAgent + "/" + useragent)
+	globalUserAgent = globalUserAgent + "/" + useragent
 }
 func GetUserAgent() string {
 	return globalUserAgent
